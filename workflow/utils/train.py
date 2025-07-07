@@ -29,6 +29,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from .convert import convert_to_offxml, to_vdw_only_ff
 from .models import WorkflowConfig
+from .plot import plot_loss
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -47,6 +48,7 @@ def report(
     trainable: descent.train.Trainable,
     topologies: dict[str, smee.TensorTopology],
     writer: SummaryWriter,
+    config: WorkflowConfig,
 ):
     # Log to console
     logging.info(
@@ -72,6 +74,12 @@ def report(
     # Optionally log the Hessian if available
     if hessian is not None:
         writer.add_histogram("Hessian", hessian.detach().cpu().numpy(), step)
+
+    # Plot the loss so we can quickly check without opening tensorboard
+    plot_loss(
+        [config],
+        output_path=config.fit_dir / "loss_plot.png",
+    )
 
     # if accept_step:
     #     ff = trainable.to_force_field(x.detach().clone().requires_grad_(False))
@@ -504,6 +512,7 @@ def train(
             trainable=trainable,
             topologies=topologies,
             writer=writer,
+            config=config,
         )
 
         x_final = descent.optim.levenberg_marquardt(
