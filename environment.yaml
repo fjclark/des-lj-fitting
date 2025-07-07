@@ -1,0 +1,41 @@
+name: des-lj
+
+channels:
+  - conda-forge
+  - openeye
+  - bioconda
+
+dependencies:
+
+  - python >=3.10
+
+  - smee
+  - descent
+  - pytorch-gpu
+  - bokeh
+  - panel
+
+  # Workflow
+  - snakemake
+  - loguru
+  - more-itertools
+
+  # Parameterization
+  - openff-toolkit
+  - openff-interchange
+  - rdkit
+  - openeye-toolkits
+
+  # Training
+  - tensorboard
+  - tensorboardX
+  - tbparse
+
+  # Dev
+  - pre-commit
+  - ruff
+  - mypy
+
+# # Pip
+#   # - pip:
+#     #   - Will need to fix simulation times in descent

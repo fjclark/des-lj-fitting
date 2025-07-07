@@ -1,0 +1,79 @@
+from utils.convert import convert_dataset, get_pt_ff_and_tops
+from utils.get_fn import get_fn
+from utils.filter import filter_dataset
+from utils.models import WorkflowConfig
+from utils.train import train
+
+from loguru import logger
+
+# Load the configuration from a yaml file
+try:
+    workflow_config_path = config["workflow_config_path"]
+except KeyError:
+    raise ValueError("workflow_config_path not found in SnakeMake config."
+                     " Please provide the path to the workflow configuration file with e.g."
+                     " `snakemake --cores all train --config workflow_config_path=configs/des370_ana2b_only.yaml`")
+
+workflow_config = WorkflowConfig.from_file(workflow_config_path)
+logger.info(f"Loaded workflow configuration {workflow_config}")
+
+
+rule download_dimer_data:
+    """Download the raw dimer data from Zenodo."""
+    output:
+        directory(workflow_config.dimer.raw_geometries_dir)
+    run:
+        get_data_fn = get_fn(workflow_config.dimer.get_data_fn)
+        get_data_fn()
+
+rule process_dimer_data:
+    """Process the raw dimer data to create a dataset."""
+    input:
+        workflow_config.dimer.raw_geometries_dir,
+        workflow_config.dimer.raw_csv_path
+    output:
+        directory(workflow_config.dimer.processed_data_dir)
+    run:
+        filter_dataset(
+            dataset_csv_path=workflow_config.dimer.raw_csv_path,
+            elements_to_keep=workflow_config.dimer.elements_to_keep,
+            ions_to_remove=workflow_config.dimer.ions_to_remove,
+            output_csv_path=workflow_config.dimer.processed_csv_path,
+        )
+
+        convert_dataset(
+            dataset_file_path=workflow_config.dimer.raw_data_dir,
+            output_path=output[0],
+            energy_columns=workflow_config.dimer.energy_columns
+        )
+
+# Need to dynamically build inputs for the get_pt_ff_and_tops rule, as we
+# may have both dimer and thermo data, or just one of them.
+processed_data_dirs = []
+if workflow_config.dimer:
+    processed_data_dirs.append(workflow_config.dimer.processed_data_dir)
+if workflow_config.thermo:
+    processed_data_dirs.append(workflow_config.thermo.processed_data_dir)
+
+rule get_pt_ff_and_tops:
+    """Get the pytorch force field and topology files"""
+    input:
+        processed_data_dirs,
+    output:
+        workflow_config.pt_ff_and_tops_path
+    run:
+        get_pt_ff_and_tops(
+            force_field_path=workflow_config.training.starting_force_field_path,
+            output_path=output[0],
+            dimer_dataset_path=workflow_config.dimer.processed_data_dir if workflow_config.dimer else None,
+            thermo_dataset_path=workflow_config.thermo.processed_data_dir if workflow_config.thermo else None
+        )
+
+rule train:
+    """Train the force field using a dimer and/or thermo phase data."""
+    input:
+        processed_data_dirs + [workflow_config.pt_ff_and_tops_path],
+    output:
+        workflow_config.output_ff_path,
+    run:
+        train(workflow_config)
