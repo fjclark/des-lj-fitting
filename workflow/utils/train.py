@@ -31,6 +31,13 @@ from .convert import convert_to_offxml, to_vdw_only_ff
 from .models import WorkflowConfig
 from .plot import plot_loss
 
+# Make the Descent (specifically the LM optimiser) logging more verbose
+logging.basicConfig(
+    level=logging.INFO,  # or logging.DEBUG for more detail
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logging.getLogger("descent").setLevel(logging.DEBUG)
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
