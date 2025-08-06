@@ -25,11 +25,12 @@ import smee.converters
 import smee.utils
 import torch
 import tqdm
+from openff.toolkit import ForceField
 from torch.utils.tensorboard import SummaryWriter
 
 from .convert import convert_to_offxml, to_vdw_only_ff
 from .models import WorkflowConfig
-from .plot import plot_loss
+from .plot import plot_loss, plot_vdw_parameter_changes
 
 # Make the Descent (specifically the LM optimiser) logging more verbose
 logging.basicConfig(
@@ -511,7 +512,7 @@ def train(
     correct_fn = trainable.clamp
 
     lm_config = descent.optim.LevenbergMarquardtConfig(
-        mode="adaptive", n_convergence_criteria=0, max_steps=10
+        mode="adaptive", n_convergence_criteria=0, max_steps=20
     )
     with SummaryWriter(config.fit_dir / "tensorboard") as writer:
         report_fn = functools.partial(
@@ -545,6 +546,13 @@ def train(
 
     # Also save a description of the fit with the output force field
     config.output_description_path.write_text(config.experiment_description)
+
+    # Plot the parameter changes from the initial force field
+    plot_vdw_parameter_changes(
+        original_ff=ForceField(config.training.starting_force_field_path),
+        fitted_ff=ForceField(config.output_ff_path),
+        output_path=config.fit_dir / "parameter_changes.png",
+    )
 
     # Save a report on the dimer energies
     if dimer_dataset is not None:
