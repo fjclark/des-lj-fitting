@@ -1,0 +1,52 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "type": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "smiles_a": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "x_a": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "smiles_b": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "x_b": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "temperature": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "pressure": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "value": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "std": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "units": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "source": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": ""
+}
