@@ -3,6 +3,7 @@ from utils.get_fn import get_fn
 from utils.filter import filter_dataset
 from utils.models import WorkflowConfig
 from utils.train import train
+from utils.benchmark import benchmark_thermo
 
 from loguru import logger
 
@@ -77,3 +78,16 @@ rule train:
         workflow_config.output_ff_path,
     run:
         train(workflow_config)
+
+rule benchmark_thermo:
+    """Benchmark the trained force field against the thermodyanamic data."""
+    input:
+        dataset="benchmarking/thermo/{dataset_name}/input/dataset",
+        force_fields=workflow_config.output_ff_path
+    output:
+        results_table="benchmarking/thermo/{dataset_name}" + f"/output/{workflow_config.experiment_name}/results_table.csv",
+    run:
+        benchmark_thermo(config=workflow_config,
+                          thermo_dataset_path=input.dataset,
+                          output_dir_path=f"benchmarking/thermo/{wildcards.dataset_name}/output/{workflow_config.experiment_name}",
+                          )

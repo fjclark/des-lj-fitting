@@ -31,6 +31,7 @@ from torch.utils.tensorboard import SummaryWriter
 from .convert import convert_to_offxml, to_vdw_only_ff
 from .models import WorkflowConfig
 from .plot import plot_loss, plot_vdw_parameter_changes
+from .simulate import iter_predicted_properties, run_required_simulations
 
 # Make the Descent (specifically the LM optimiser) logging more verbose
 logging.basicConfig(
@@ -195,28 +196,6 @@ def default_dimer_closure(
     return closure_fn
 
 
-def run_simulation(
-    phase: descent.targets.thermo.Phase,
-    key: descent.targets.thermo.SimulationKey,
-    system: smee.TensorSystem,
-    force_field: smee.TensorForceField,
-    output_dir: pathlib.Path,
-) -> tuple[str, str, str]:
-    """Run the given simulation and return the path to the frames from which the observables can be computed along with the phase and key."""
-    import hashlib
-    import pickle
-
-    traj_hash = hashlib.sha256(pickle.dumps(key)).hexdigest()
-    traj_name = f"{phase}-{traj_hash}-frames.msgpack"
-
-    output_path = output_dir / traj_name
-
-    config = descent.targets.thermo.default_config(phase, key.temperature, key.pressure)
-    descent.targets.thermo._simulate(system, force_field, config, output_path)
-    return (phase, key, output_path)
-    # return output_path
-
-
 def smart_liquid_closure(
     trainable: "descent.train.Trainable",
     topologies: dict[str, smee.TensorTopology],
@@ -248,10 +227,6 @@ def smart_liquid_closure(
         compute_gradient: bool,
         compute_hessian: bool,
     ):
-        from concurrent.futures import ProcessPoolExecutor, as_completed
-        from multiprocessing import get_context
-
-        import openmm.unit
 
         total_loss, grad, hess = (
             torch.zeros(size=(1,), device=x.device.type),
@@ -259,103 +234,38 @@ def smart_liquid_closure(
             None,
         )
 
+        # Plan the required simulations
         entries = [*descent.utils.dataset.iter_dataset(dataset)]
-        # plan the minimum number of required simulations
         required_simulations, entry_to_simulation = (
             descent.targets.thermo._plan_simulations(entries, topologies)
         )
-        # run the simulations and store the path to the simulation data to be used later
-        # detach the tensor to pass through the pool, only used for the simulation the attched tensor is used for the gradient later
-        sim_ff = trainable.to_force_field(x.detach().clone())
-        frames = {phase: {} for phase in required_simulations.keys()}
-        with ProcessPoolExecutor(
-            max_workers=2, mp_context=get_context("spawn")
-        ) as pool:
-            simulations = []
-            for phase, systems in required_simulations.items():
-                for key, system in systems.items():
-                    simulations.append(
-                        pool.submit(
-                            run_simulation,
-                            **{
-                                "phase": phase,
-                                "key": key,
-                                "system": system,
-                                "force_field": sim_ff,
-                                "output_dir": output_dir,
-                            },
-                        )
-                    )
-            for job in tqdm.tqdm(
-                as_completed(simulations),
-                desc="Running simulations",
-                total=len(simulations),
-            ):
-                phase, key, sim_path = job.result()
-                frames[phase][key] = sim_path
 
-        # As above, but sequential with no multiprocessing
-        # for phase, systems in tqdm.tqdm(
-        #     required_simulations.items(),
-        #     desc="Running simulations",
-        #     ncols=80,
-        #     total=len(required_simulations),
-        # ):
-        #     print(f"Running {phase} simulations")
-        #     for key, system in systems.items():
-        #         print(f"Running {key}, {system}")
-        #         frames[phase][key] = run_simulation(
-        #             phase, key, system, sim_ff, output_dir
-        #         )
+        # Run required simulations
+        frames = run_required_simulations(
+            trainable,
+            x,
+            required_simulations,
+            output_dir,
+            max_workers=2,
+        )
 
-        # frames = {
-        #     phase: {
-        #         key: run_simulation(phase, key, system, force_field, output_dir)
-        #         for key, system in systems.items()
-        #     }
-        #     for phase, systems in required_simulations.items()
-        # }
-
-        # remake the force field to make sure the graident is correctly attached to the tensors
-        force_field = trainable.to_force_field(x)
-        # load each of the set of frames and calculate the loss
-        for entry, keys in tqdm.tqdm(
-            zip(entries, entry_to_simulation, strict=True),
-            desc="Calculating observables",
-            ncols=80,
-            total=len(entries),
+        # Calculate the loss from the predicted properties
+        for entry, pred, _ in iter_predicted_properties(
+            entries,
+            entry_to_simulation,
+            required_simulations,
+            frames,
+            trainable,
+            x,
         ):
+            predicted = []
             type_scale = per_type_scales.get(entry["type"], 1.0)
             ref = entry["value"] * type_scale
-            # gather the observables for this entry
-            from collections import defaultdict
 
-            observables = defaultdict(dict)
-            predicted = []
-            for sim_key in keys.values():
-                temperature = sim_key.temperature * openmm.unit.kelvin
-                pressure = (
-                    None
-                    if sim_key.pressure is None
-                    else sim_key.pressure * openmm.unit.atmospheres
-                )
-                obs = descent.targets.thermo._Observables(
-                    *smee.mm.compute_ensemble_averages(
-                        system=required_simulations["bulk"][sim_key],
-                        force_field=force_field,
-                        frames_path=frames["bulk"][sim_key],
-                        temperature=temperature,
-                        pressure=pressure,
-                    ),
-                )
-                observables["bulk"][sim_key] = obs
-            # print(observables)
-            pred, _ = descent.targets.thermo._predict(
-                entry=entry,
-                keys=keys,
-                observables=observables,
-                systems=required_simulations,
-            )
+            # Compute the loss for this entry
+            predicted.append(pred * type_scale)
+            y_pred = torch.stack(predicted)
+
             predicted.append(pred * type_scale)
             y_pred = torch.stack(predicted)
             print(y_pred)
@@ -394,7 +304,7 @@ def train(
     config: WorkflowConfig,
 ) -> None:
     """
-    Train a force field to a mixture of dimer and thermo data, using the
+    Train a force field to dimer and/or thermo data, using the
     Levenberg-Marquardt algorithm.
     """
 
