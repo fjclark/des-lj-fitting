@@ -200,6 +200,7 @@ workflow/dimer_datasets/DES370K/geometries
 workflow/dimer_datasets/DES370K_ANA2B_V_ana_ANA2B_V_D3_dataset
 workflow/fits/*
 workflow/ff_and_top_files/*
+**/output/*
 
 # Snakemake
 .snakemake

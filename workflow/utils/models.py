@@ -21,6 +21,16 @@ class DimerConfig(BaseModel):
         description="Energy columns to sum to get the target energy for the dimer data.",
     )
 
+    loss_fn: str = Field(
+        default="descent.utils.loss.get_loss_dimer_boltz_ref_0",
+        description="Loss function to use for training.",
+    )
+
+    vdw_only: bool = Field(
+        default=True,
+        description="Whether we are fitting only to vdW interactions. Expected to be the case if using the ANA2B decomposition.",
+    )
+
     elements_to_keep: list[str] = Field(
         default=["H", "C", "N", "O", "F", "S", "Cl"],
         description="Elements to keep in the dimer dataset.",

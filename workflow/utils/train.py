@@ -9,6 +9,7 @@ import logging
 import os
 import pathlib
 import pprint
+from functools import partial
 
 import datasets
 import descent.optim
@@ -32,6 +33,8 @@ from .convert import convert_to_offxml, to_vdw_only_ff
 from .models import WorkflowConfig
 from .plot import plot_loss, plot_vdw_parameter_changes
 from .simulate import iter_predicted_properties, run_required_simulations
+from .loss import LossFnProto
+from .get_fn import get_fn
 
 # Make the Descent (specifically the LM optimiser) logging more verbose
 logging.basicConfig(
@@ -103,7 +106,9 @@ def default_dimer_closure(
     trainable: "descent.train.Trainable",
     topologies: dict[str, smee.TensorTopology],
     dataset: datasets.Dataset,
+    loss_fn: LossFnProto,
     batch_size: int = 1,
+    vdw_only: bool = True,
 ) -> descent.optim.ClosureFn:
     """Return a default closure function for training against thermodynamic
     properties.
@@ -113,7 +118,9 @@ def default_dimer_closure(
         topologies: The topologies of the molecules present in the dataset, with keys
             of mapped SMILES patterns.
         dataset: The dataset to train against.
+        loss_fn: The loss function to use for training.
         batch_size: The number of dimer entries to calculate the gradient and hessian for in each batch, gradients and hessian will be averaged over the batch.
+        vdw_only: Whether the reference energy is vdW only (or the total energy).
 
     Returns:
         The default closure function.
@@ -121,7 +128,6 @@ def default_dimer_closure(
     import math
 
     import more_itertools
-    import tqdm
 
     def closure_fn(
         x: torch.Tensor,
@@ -147,31 +153,19 @@ def default_dimer_closure(
             actuall_batch_size = len(batch)
             batch_configs = sum([len(d["energy"]) for d in batch])
 
-            def loss_fn(_x):
-                ff_vdw = to_vdw_only_ff(trainable.to_force_field(_x))
-                y_ref, y_pred = descent.targets.dimers.predict(
-                    batch, ff_vdw, topologies
-                )
-                return torch.sqrt(((y_pred - y_ref) ** 2).mean())
+            _loss_fn = partial(
+                loss_fn,
+                trainable=trainable,
+                batch=batch,
+                topologies=topologies,
+                vdw_only=vdw_only,
+            )
 
-            # def loss_fn(_x):
-            #     ff_vdw = to_vdw_only_ff(trainable.to_force_field(_x))
-            #     y_ref, y_pred = descent.targets.dimers.predict(
-            #         batch, ff_vdw, topologies
-            #     )
-            #     # Weight the loss by the Boltzmann factor of the QM energy
-            #     qm_0 = min(y_ref)
-            #     weights = torch.exp(-(y_ref - qm_0) / 0.59)  # kT at 300K
-            #     weights /= weights.sum()
-            #     weighted_sq_diff = torch.square(y_pred - y_ref) * weights
-
-            #     return torch.sqrt(weighted_sq_diff).mean()
-
-            loss = loss_fn(x)
+            loss = _loss_fn(x)
 
             if compute_hessian:
                 hessian = torch.autograd.functional.hessian(
-                    loss_fn, x, vectorize=True, create_graph=False
+                    _loss_fn, x, vectorize=True, create_graph=False
                 ).detach()
                 if hess is None:
                     hess = hessian * actuall_batch_size
@@ -227,7 +221,6 @@ def smart_liquid_closure(
         compute_gradient: bool,
         compute_hessian: bool,
     ):
-
         total_loss, grad, hess = (
             torch.zeros(size=(1,), device=x.device.type),
             None,
@@ -406,7 +399,9 @@ def train(
             trainable=trainable,
             topologies=topologies,
             dataset=dimer_dataset,
+            loss_fn=get_fn(config.dimer.loss_fn),
             batch_size=100,
+            vdw_only=config.dimer.vdw_only,
         )
     if len(closures_to_combine) > 1:
         closure_fn = descent.utils.loss.combine_closures(
@@ -467,11 +462,21 @@ def train(
     # Save a report on the dimer energies
     if dimer_dataset is not None:
         tops = {smiles: topology.to("cpu") for smiles, topology in topologies.items()}
+        ff_initial = (
+            to_vdw_only_ff(ff_initial).to("cpu")
+            if config.dimer.vdw_only
+            else ff_initial.to("cpu")
+        )
+        ff_final = (
+            to_vdw_only_ff(ff_final).to("cpu")
+            if config.dimer.vdw_only
+            else ff_final.to("cpu")
+        )
         descent.targets.dimers.report(
             dimer_dataset,
             {
-                "LJ Initial": to_vdw_only_ff(ff_initial).to("cpu"),
-                "LJ Opt": to_vdw_only_ff(ff_final).to("cpu"),
+                "LJ Initial": ff_initial,
+                "LJ Opt": ff_final,
             },
             {"LJ Initial": tops, "LJ Opt": tops},
             config.fit_dir / "energies.html",
