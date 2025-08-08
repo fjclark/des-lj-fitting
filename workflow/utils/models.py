@@ -21,11 +21,6 @@ class DimerConfig(BaseModel):
         description="Energy columns to sum to get the target energy for the dimer data.",
     )
 
-    loss_fn: str = Field(
-        default="descent.utils.loss.get_loss_dimer_boltz_ref_0",
-        description="Loss function to use for training.",
-    )
-
     vdw_only: bool = Field(
         default=True,
         description="Whether we are fitting only to vdW interactions. Expected to be the case if using the ANA2B decomposition.",
@@ -82,6 +77,14 @@ class TrainingConfig(BaseModel):
     starting_force_field: str = Field(
         default="openff_unconstrained-2.2.0",
         description="Name of the starting force field to use for fitting.",
+    )
+
+    loss_fns: dict[str, str] = Field(
+        default_factory=lambda: {
+            "dimer": "descent.utils.loss.get_loss_dimer_boltz_ref_0",
+            # "thermo": "descent.utils.loss.get_loss_thermo", # TODO: Implement this
+        },
+        description="Functions to use for the loss calculation for different datasets.",
     )
 
     weights: dict[str, float] = Field(

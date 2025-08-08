@@ -6,6 +6,7 @@ dimer:
   energy_columns:
   - ANA2B_V_ana
   - ANA2B_V_D3
+  vdw_only: false
   elements_to_keep:
   - H
   - C
@@ -21,6 +22,8 @@ dimer:
 thermo: null
 training:
   starting_force_field: openff_unconstrained-2.2.0
+  loss_fns:
+    dimer: utils.loss.get_loss_dimer_boltz_ref_0
   weights:
     dimer: 1.0
     thermo: 1.0

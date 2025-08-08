@@ -399,7 +399,7 @@ def train(
             trainable=trainable,
             topologies=topologies,
             dataset=dimer_dataset,
-            loss_fn=get_fn(config.dimer.loss_fn),
+            loss_fn=get_fn(config.training.loss_fns["dimer"]),
             batch_size=100,
             vdw_only=config.dimer.vdw_only,
         )
