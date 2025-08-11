@@ -4,6 +4,7 @@ Filter the DES dataset to only contain records with elements of interest
 
 from functools import partial
 
+import numpy as np
 import pandas as pd
 from loguru import logger
 from rdkit import Chem
