@@ -71,3 +71,18 @@ def filter_dataset(
     logger.info(
         f"Total number of records after filtering: {len(filtered_dataset)} and unique systems: {len(filtered_dataset['system_id'].unique())}"
     )
+
+
+filter_dimers_std = partial(
+    filter_dataset,
+    elements_to_keep=["H", "C", "N", "O", "F", "S", "Cl"],
+    ions_to_remove=["[F-]", "[Cl-]", "[H][H]"],
+    max_entries=None,
+)
+
+filter_dimers_std_100 = partial(
+    filter_dataset,
+    elements_to_keep=["H", "C", "N", "O", "F", "S", "Cl"],
+    ions_to_remove=["[F-]", "[Cl-]", "[H][H]"],
+    max_entries=100,
+)

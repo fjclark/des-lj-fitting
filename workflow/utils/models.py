@@ -26,14 +26,9 @@ class DimerConfig(BaseModel):
         description="Whether we are fitting only to vdW interactions. Expected to be the case if using the ANA2B decomposition.",
     )
 
-    elements_to_keep: list[str] = Field(
-        default=["H", "C", "N", "O", "F", "S", "Cl"],
-        description="Elements to keep in the dimer dataset.",
-    )
-
-    ions_to_remove: list[str] = Field(
-        default=["[F-]", "[Cl-]", "[H][H]"],
-        description="Ions to remove from the dimer dataset. Most will be caught by the element filter - just need to remove some halogen ones.",
+    filter_data_fn: str = Field(
+        default="utils.filter.filter_dimers_std",
+        description="Function to filter the dimer data.",
     )
 
     @property
@@ -43,7 +38,7 @@ class DimerConfig(BaseModel):
     @property
     def processed_data_dir(self) -> Path:
         return Path(
-            str(self.raw_data_dir) + f"_{'_'.join(self.energy_columns)}_" + "dataset"
+            f"{str(self.raw_data_dir)}_{'_'.join(self.energy_columns)}_{self.filter_data_fn.split('.')[-1]}_dataset"
         )
 
     @property
