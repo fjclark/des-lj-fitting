@@ -38,8 +38,6 @@ rule process_dimer_data:
         filter_dataset_fn = get_fn(workflow_config.dimer.filter_data_fn)
         filter_dataset_fn(
             dataset_csv_path=workflow_config.dimer.raw_csv_path,
-            elements_to_keep=workflow_config.dimer.elements_to_keep,
-            ions_to_remove=workflow_config.dimer.ions_to_remove,
             output_csv_path=workflow_config.dimer.processed_csv_path,
         )
 
