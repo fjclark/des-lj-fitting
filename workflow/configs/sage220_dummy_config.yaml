@@ -1,0 +1,50 @@
+experiment_name: 'openff-2.2.0'
+experiment_description: 'A dummy config to allow sage 2.2.0 to be benchmarked in the same way as the fit force fields.'
+dimer:
+  raw_data_dir: dimer_datasets/DES370K
+  get_data_fn: utils.download_data.download_DES370K_dimer_data
+  energy_columns:
+  - ANA2B_V_ana
+  - ANA2B_V_D3
+  vdw_only: true
+  elements_to_keep:
+  - H
+  - C
+  - N
+  - O
+  - F
+  - S
+  - Cl
+  ions_to_remove:
+  - '[F-]'
+  - '[Cl-]'
+  - '[H][H]'
+thermo: null
+training:
+  starting_force_field: openff_unconstrained-2.2.0
+  loss_fns:
+    dimer: utils.loss.get_loss_dimer_boltz_ref_0
+  weights:
+    dimer: 1.0
+    thermo: 1.0
+  thermo_scales:
+    density: 50
+    hmix: 10
+  parameters:
+    vdW:
+      cols:
+      - epsilon
+      - sigma
+      scales:
+        epsilon: 10
+        sigma: 1.0
+      limits:
+        epsilon:
+        - 0.0
+        - null
+        sigma:
+        - 0.0
+        - null
+      exclude:
+      - '[#1:1]-[#8X2H2+0]-[#1]'
+  attributes: {}
