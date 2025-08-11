@@ -2,9 +2,16 @@
 
 from pathlib import Path
 
+import bokeh.io
+import bokeh.palettes
+import bokeh.plotting
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import plotmol
 from openff.toolkit import ForceField
 from openff.toolkit.typing.engines.smirnoff.parameters import vdWType
+from scipy.stats import linregress
 from tbparse import SummaryReader
 
 from .models import WorkflowConfig
@@ -175,3 +182,113 @@ def plot_vdw_parameter_changes(
     fig, ax = plot_vdw_parameter_changes_from_parameters(changed_parameters)
     fig.savefig(str(output_path), dpi=300)
     plt.close(fig)
+
+
+def create_interactive_plot(data: pd.DataFrame, output_path: Path) -> None:
+    """
+    Interactive plot with points split vertically in two colours (left/right halves).
+    Colours correspond to smiles_a and smiles_b.
+    """
+
+    # Check type consistency
+    assert all(
+        data["type"] == data["type"].iloc[0]
+    ), "All entries in the 'type' column must be the same."
+    entry_type = data["type"].iloc[0]
+
+    figure = bokeh.plotting.figure(
+        tooltips=plotmol.default_tooltip_template(),
+        x_axis_label=f"Reference {entry_type}",
+        y_axis_label=f"Predicted {entry_type}",
+        width=600,
+        height=600,
+    )
+
+    # Generate colours for all unique smiles
+    unique_smiles = pd.unique(data[["smiles_a", "smiles_b"]].values.ravel())
+    palette = bokeh.palettes.viridis(len(unique_smiles))
+    smiles_to_color = {sm: palette[i] for i, sm in enumerate(unique_smiles)}
+
+    df = data.copy()
+    df["color_a"] = [smiles_to_color[sm] for sm in df["smiles_a"]]
+    df["color_b"] = [smiles_to_color[sm] for sm in df["smiles_b"]]
+    df["combined_smiles"] = [
+        ".".join([a, b]) for a, b in zip(df["smiles_a"], df["smiles_b"])
+    ]
+
+    # Circle radius (in data units) — adjust as needed
+    radius = (df["ref"].max() - df["ref"].min()) * 0.01
+
+    # Plot molecule tooltips for full circles (invisible)
+    # Use plotmol.scatter just to get molecule hover, but alpha=0
+    plotmol.scatter(
+        figure,
+        x=df["ref"],
+        y=df["pred"],
+        smiles=df["combined_smiles"],
+        marker_size=30,
+        marker_color="white",
+        alpha=0,
+    )
+
+    # Add left half wedges for smiles_a colours
+    figure.wedge(
+        x=df["ref"],
+        y=df["pred"],
+        radius=radius,
+        start_angle=np.pi / 2,  # 90 degrees
+        end_angle=3 * np.pi / 2,  # 270 degrees
+        fill_color=df["color_a"],
+        line_color=None,
+        alpha=0.9,
+    )
+
+    # Add right half wedges for smiles_b colours
+    figure.wedge(
+        x=df["ref"],
+        y=df["pred"],
+        radius=radius,
+        start_angle=3 * np.pi / 2,  # 270 degrees
+        end_angle=np.pi / 2,  # 90 degrees (wraps around)
+        fill_color=df["color_b"],
+        line_color=None,
+        alpha=0.9,
+    )
+
+    # Leave uncertainty for know until we implement standard errors
+    # figure.segment(
+    #     x0=df["ref"],
+    #     y0=df["pred"] - df["std_pred"],
+    #     x1=df["ref"],
+    #     y1=df["pred"] + df["std_pred"],
+    #     line_color="black",
+    #     line_width=1,
+    #     alpha=0.7,
+    #     legend_label="Prediction Uncertainty",
+    # )
+
+    # Perfect prediction line
+    min_val = min(df["ref"].min(), df["pred"].min())
+    max_val = max(df["ref"].max(), df["pred"].max())
+    figure.line(
+        [min_val, max_val],
+        [min_val, max_val],
+        line_color="black",
+        line_width=2,
+        alpha=0.5,
+        legend_label="x = y",
+    )
+
+    # Line of best fit
+    slope, intercept, r_value, _, _ = linregress(df["ref"], df["pred"])
+    x_fit = df["ref"]
+    y_fit = slope * x_fit + intercept
+    figure.line(x_fit, y_fit, legend_label=f"Best Fit (R² = {r_value**2:.2f})")
+
+    # Configure legend
+    figure.legend.location = "top_left"
+    figure.legend.click_policy = "hide"
+
+    # Show + save
+    bokeh.plotting.show(figure)
+    bokeh.io.save(figure, filename=output_path)
