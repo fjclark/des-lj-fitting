@@ -99,9 +99,9 @@ def format_metrics_df_for_human(metrics_df: pd.DataFrame) -> pd.DataFrame:
     for entry_type, metrics in metrics_df.iterrows():
         formatted_df_data[entry_type] = {}
         for metric in stats.METRIC_FNS.keys():
-            formatted_df_data[entry_type][metric] = (
-                f"{metrics[metric]:.3f} [{metrics[f'{metric}_ci_95_lower']:.3f} {metrics[f'{metric}_ci_95_upper']:.3f}]"
-            )
+            formatted_df_data[entry_type][
+                metric
+            ] = f"{metrics[metric]:.3f} [{metrics[f'{metric}_ci_95_lower']:.3f} {metrics[f'{metric}_ci_95_upper']:.3f}]"
 
     formatted_df = pd.DataFrame(formatted_df_data).T
     formatted_df.index.name = "metric"
@@ -139,7 +139,9 @@ def benchmark_thermo(
 
     # Create the topologies if required
     if not ffs_and_tops_path.exists():
-        logger.info(f"Generating force field and topologies at {ffs_and_tops_path}")
+        logger.info(
+            f"Generating force field and topologies at {ffs_and_tops_path} from {config.output_ff_path}"
+        )
         get_pt_ff_and_tops(
             force_field_path=str(config.output_ff_path),
             output_path=str(ffs_and_tops_path),
@@ -165,15 +167,19 @@ def benchmark_thermo(
     required_simulations, entry_to_simulation = (
         descent.targets.thermo._plan_simulations(entries, topologies)
     )
-    logger.info(f"Required simulations: {required_simulations.keys()}")
+    logger.info(f"Required simulations bulk: {required_simulations['bulk'].keys()}")
+    logger.info(f"Required simulations vacuum: {required_simulations['vacuum'].keys()}")
 
     # Run required simulations
-    logger.info(f"Running {len(required_simulations)} required simulations")
+    logger.info(
+        f"Running {len(required_simulations['bulk'])} required bulk simulations and {len(required_simulations['vacuum'])} required vacuum simulations"
+    )
     frames = run_required_simulations(
         trainable,
         x,
         required_simulations,
         simulation_output_path,
+        benchmarking_config=config.benchmarking,
         max_workers=2,
     )
 

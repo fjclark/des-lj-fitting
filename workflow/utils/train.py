@@ -30,11 +30,11 @@ from openff.toolkit import ForceField
 from torch.utils.tensorboard import SummaryWriter
 
 from .convert import convert_to_offxml, to_vdw_only_ff
+from .get_fn import get_fn
+from .loss import LossFnProto
 from .models import WorkflowConfig
 from .plot import plot_loss, plot_vdw_parameter_changes
 from .simulate import iter_predicted_properties, run_required_simulations
-from .loss import LossFnProto
-from .get_fn import get_fn
 
 # Make the Descent (specifically the LM optimiser) logging more verbose
 logging.basicConfig(

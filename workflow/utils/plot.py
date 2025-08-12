@@ -191,9 +191,9 @@ def create_interactive_plot(data: pd.DataFrame, output_path: Path) -> None:
     """
 
     # Check type consistency
-    assert all(
-        data["type"] == data["type"].iloc[0]
-    ), "All entries in the 'type' column must be the same."
+    assert all(data["type"] == data["type"].iloc[0]), (
+        "All entries in the 'type' column must be the same."
+    )
     entry_type = data["type"].iloc[0]
 
     figure = bokeh.plotting.figure(

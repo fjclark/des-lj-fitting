@@ -15,6 +15,7 @@ dependencies:
   - bokeh
   - panel
   - seaborn
+  - plotmol
 
   # Workflow
   - snakemake

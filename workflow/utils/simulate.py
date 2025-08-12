@@ -18,10 +18,12 @@ import torch
 import tqdm
 from loguru import logger
 
+from .models import BenchmarkingConfig
+
 
 # From https://github.com/jthorton/descent/blob/8aeaaee88d6192525891ea7ffbf7a8ff0e8c09e1/descent/targets/thermo.py#L307
 def _bulk_config(
-    temperature: float, pressure: float
+    temperature: float, pressure: float, benchmarking_config: BenchmarkingConfig
 ) -> descent.targets.thermo.SimulationConfig:
     """Return a default simulation configuration for simulations of the bulk phase.
 
@@ -44,19 +46,19 @@ def _bulk_config(
             smee.mm.SimulationConfig(
                 temperature=temperature,
                 pressure=pressure,
-                # n_steps=100_000,
-                n_steps=10,
-                timestep=2.0 * openmm.unit.femtosecond,
+                n_steps=benchmarking_config.bulk_phase_equil_steps,
+                timestep=benchmarking_config.bulk_phase_equil_timestep
+                * openmm.unit.femtosecond,
             ),
         ],
         production=smee.mm.SimulationConfig(
             temperature=temperature,
             pressure=pressure,
-            # n_steps=1_000_000,
-            n_steps=100,
-            timestep=2.0 * openmm.unit.femtosecond,
+            n_steps=benchmarking_config.bulk_phase_production_steps,
+            timestep=benchmarking_config.bulk_phase_production_timestep
+            * openmm.unit.femtosecond,
         ),
-        production_frequency=2000,
+        production_frequency=benchmarking_config.bulk_phase_production_frequency,
     )
 
 
@@ -95,13 +97,17 @@ def _vacuum_config(
             n_steps=100,
             timestep=1.0 * openmm.unit.femtosecond,
         ),
-        production_frequency=500,
+        # production_frequency=500,
+        production_frequency=10,
     )
 
 
 # From https://github.com/SimonBoothroyd/descent/blob/7cd8062e2ff222047dfaccc6e45facf614abe9db/descent/targets/thermo.py#L385C1-L404C41
 def default_config(
-    phase: descent.targets.thermo.Phase, temperature: float, pressure: float | None
+    phase: descent.targets.thermo.Phase,
+    temperature: float,
+    pressure: float | None,
+    benchmarking_config: BenchmarkingConfig,
 ) -> descent.targets.thermo.SimulationConfig:
     """Return a default simulation configuration for the specified phase.
 
@@ -115,9 +121,9 @@ def default_config(
     """
 
     if phase.lower() == "bulk":
-        return _bulk_config(temperature, pressure)
-    elif phase.lower() == "vacuum":
-        return descent.targets.thermo._vacuum_config(temperature, pressure)
+        return _bulk_config(temperature, pressure, benchmarking_config)
+    # elif phase.lower() == "vacuum":
+    #     return descent.targets.thermo._vacuum_config(temperature, pressure)
     else:
         raise NotImplementedError(phase)
 
@@ -128,6 +134,7 @@ def run_simulation(
     system: smee.TensorSystem,
     force_field: smee.TensorForceField,
     output_dir: pathlib.Path,
+    benchmarking_config: BenchmarkingConfig,
 ) -> tuple[
     descent.targets.thermo.Phase, descent.targets.thermo.SimulationKey, pathlib.Path
 ]:
@@ -146,7 +153,10 @@ def run_simulation(
         )
 
     else:
-        config = default_config(phase, key.temperature, key.pressure)
+        logger.info(f"Running simulation {phase} {key} at {output_path}")
+        config = default_config(
+            phase, key.temperature, key.pressure, benchmarking_config
+        )
         descent.targets.thermo._simulate(system, force_field, config, output_path)
 
     return (phase, key, output_path)
@@ -159,6 +169,7 @@ def run_required_simulations(
         descent.targets.thermo.Phase, Dict[Any, smee.TensorSystem]
     ],
     output_dir: pathlib.Path,
+    benchmarking_config: BenchmarkingConfig,
     max_workers: int = 2,
 ) -> Dict[str, Dict[Any, Any]]:
     """
@@ -170,6 +181,7 @@ def run_required_simulations(
         required_simulations: Dictionary of required simulations, indexed by phase and key.
         output_dir: Directory to store simulation outputs.
         max_workers: Number of parallel workers.
+        benchmarking_config: Configuration for benchmarking the fitted force field.
         mp_context: Multiprocessing context (optional).
 
     Returns:
@@ -196,6 +208,7 @@ def run_required_simulations(
                             "system": system,
                             "force_field": sim_ff,
                             "output_dir": output_dir,
+                            "benchmarking_config": benchmarking_config,
                         },
                     )
                 )
@@ -206,15 +219,16 @@ def run_required_simulations(
         ):
             phase, key, sim_path = job.result()
             frames[phase][key] = sim_path
+
     return frames
 
 
 def iter_predicted_properties(
-    entries: list[Any],
-    entry_to_simulation: list[Any],
+    entries: list,
+    entry_to_simulation: list,
     required_simulations: dict,
     frames: dict,
-    trainable: Any,
+    trainable: descent.train.Trainable,
     x: torch.Tensor,
 ) -> Iterator[Tuple[Any, Any, Any]]:
     """

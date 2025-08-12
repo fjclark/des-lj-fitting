@@ -76,8 +76,8 @@ class TrainingConfig(BaseModel):
 
     loss_fns: dict[str, str] = Field(
         default_factory=lambda: {
-            "dimer": "descent.utils.loss.get_loss_dimer_boltz_ref_0",
-            # "thermo": "descent.utils.loss.get_loss_thermo", # TODO: Implement this
+            "dimer": "utils.loss.get_loss_dimer_boltz_ref_0",
+            # "thermo": "utils.loss.get_loss_thermo", # TODO: Implement this
         },
         description="Functions to use for the loss calculation for different datasets.",
     )
@@ -120,6 +120,34 @@ class TrainingConfig(BaseModel):
         return Path(f"input_ff/{self.starting_force_field}.offxml")
 
 
+class BenchmarkingConfig(BaseModel):
+    """Configuration for benchmarking the fitted force field."""
+
+    bulk_phase_equil_steps: int = Field(
+        default=100_000,
+        description="Number of equilibration steps for the bulk phase.",
+    )
+    bulk_phase_equil_timestep: int = Field(
+        default=2,
+        description="Timestep for the bulk phase simulations, in femtoseconds.",
+    )
+
+    bulk_phase_production_steps: int = Field(
+        default=1_000_000,
+        description="Number of production steps for the bulk phase.",
+    )
+
+    bulk_phase_production_timestep: int = Field(
+        default=2,
+        description="Timestep for the bulk phase production simulations, in femtoseconds.",
+    )
+
+    bulk_phase_production_frequency: int = Field(
+        default=2000,
+        description="Frequency of data collection during bulk phase production, in steps.",
+    )
+
+
 class WorkflowConfig(BaseModel):
     experiment_name: str = Field(default="", description="Name of the experiment.")
     experiment_description: str = Field(
@@ -135,6 +163,11 @@ class WorkflowConfig(BaseModel):
     training: TrainingConfig = Field(
         default_factory=TrainingConfig,
         description="Configuration for the training process.",
+    )
+
+    benchmarking: BenchmarkingConfig = Field(
+        default_factory=BenchmarkingConfig,
+        description="Configuration for benchmarking the fitted force field.",
     )
 
     @property
