@@ -1,4 +1,4 @@
-PACKAGE_NAME  := des-lj
+PACKAGE_NAME  := des-lj-mace
 CONDA_ENV_RUN := conda run --no-capture-output --name $(PACKAGE_NAME)
 
 .PHONY: env lint format

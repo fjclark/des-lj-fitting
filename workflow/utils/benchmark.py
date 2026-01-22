@@ -99,9 +99,9 @@ def format_metrics_df_for_human(metrics_df: pd.DataFrame) -> pd.DataFrame:
     for entry_type, metrics in metrics_df.iterrows():
         formatted_df_data[entry_type] = {}
         for metric in stats.METRIC_FNS.keys():
-            formatted_df_data[entry_type][
-                metric
-            ] = f"{metrics[metric]:.3f} [{metrics[f'{metric}_ci_95_lower']:.3f} {metrics[f'{metric}_ci_95_upper']:.3f}]"
+            formatted_df_data[entry_type][metric] = (
+                f"{metrics[metric]:.3f} [{metrics[f'{metric}_ci_95_lower']:.3f} {metrics[f'{metric}_ci_95_upper']:.3f}]"
+            )
 
     formatted_df = pd.DataFrame(formatted_df_data).T
     formatted_df.index.name = "metric"

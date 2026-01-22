@@ -7,21 +7,10 @@ dimer:
   - ANA2B_V_ana
   - ANA2B_V_D3
   vdw_only: true
-  elements_to_keep:
-  - H
-  - C
-  - N
-  - O
-  - F
-  - S
-  - Cl
-  ions_to_remove:
-  - '[F-]'
-  - '[Cl-]'
-  - '[H][H]'
+  filter_data_fn: utils.filter.filter_dimers_std
 thermo: null
 training:
-  starting_force_field: openff_unconstrained-2.2.0
+  starting_force_field: openff-2.2.0
   loss_fns:
     dimer: utils.loss.get_loss_dimer_boltz_ref_0
   weights:
@@ -48,3 +37,9 @@ training:
       exclude:
       - '[#1:1]-[#8X2H2+0]-[#1]'
   attributes: {}
+benchmarking:
+  bulk_phase_equil_steps: 100000
+  bulk_phase_equil_timestep: 2
+  bulk_phase_production_steps: 1000000
+  bulk_phase_production_timestep: 2
+  bulk_phase_production_frequency: 2000

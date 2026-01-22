@@ -75,10 +75,11 @@ def get_pt_ff_and_tops(
     )
 
     unique_smiles = set(smiles_list)
+    ff = openff.toolkit.ForceField(str(force_field_path), load_plugins=True)
 
     interchanges = [
         openff.interchange.Interchange.from_smirnoff(
-            openff.toolkit.ForceField(force_field_path, load_plugins=True),
+            openff.toolkit.ForceField(str(force_field_path), load_plugins=True),
             openff.toolkit.Molecule.from_mapped_smiles(smiles).to_topology(),
         )
         for smiles in tqdm.tqdm(

@@ -184,10 +184,21 @@ def plot_vdw_parameter_changes(
     plt.close(fig)
 
 
-def create_interactive_plot(data: pd.DataFrame, output_path: Path) -> None:
+def create_interactive_plot(
+    data: pd.DataFrame, output_path: Path, data_updated: pd.DataFrame | None = None
+) -> None:
     """
     Interactive plot with points split vertically in two colours (left/right halves).
     Colours correspond to smiles_a and smiles_b.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        The data to plot.
+    output_path : Path
+        The path to save the plot.
+    data_updated : pd.DataFrame | None
+        The updated data to plot (if any), e.g. after a parameter update.
     """
 
     # Check type consistency
@@ -266,6 +277,51 @@ def create_interactive_plot(data: pd.DataFrame, output_path: Path) -> None:
     #     alpha=0.7,
     #     legend_label="Prediction Uncertainty",
     # )
+
+    # Add the updated data as black crosses with lines drawn to the original
+    # data positions
+    if data_updated is not None:
+        # Make sure that all smiles pairs are present in the updated data
+        for row in df.itertuples():
+            smiles_a, smiles_b, entry_type = row.smiles_a, row.smiles_b, row.type
+            # Make sure there's a corresponding row in the updated data
+            updated_row = data_updated[
+                (data_updated["smiles_a"] == smiles_a)
+                & (data_updated["smiles_b"] == smiles_b)
+                & (data_updated["type"] == entry_type)
+            ]
+            assert not updated_row.empty, (
+                f"Missing updated row for {smiles_a}, {smiles_b}, {entry_type}"
+            )
+
+        # Plot the updated data as black crosses
+        figure.scatter(
+            x=data_updated["ref"],
+            y=data_updated["pred"],
+            marker="x",
+            size=10,
+            color="black",
+            alpha=0.8,
+            legend_label="Updated Predictions",
+        )
+
+        # Add dotted line to connect original and updated points
+        for row in df.itertuples():
+            smiles_a, smiles_b = row.smiles_a, row.smiles_b
+            updated_row = data_updated[
+                (data_updated["smiles_a"] == smiles_a)
+                & (data_updated["smiles_b"] == smiles_b)
+            ]
+            if not updated_row.empty:
+                figure.line(
+                    [row.ref, updated_row["ref"].values[0]],
+                    [row.pred, updated_row["pred"].values[0]],
+                    line_color="black",
+                    line_dash="dotted",
+                    alpha=0.5,
+                )
+            else:
+                raise ValueError(f"Missing updated row for {smiles_a}, {smiles_b}")
 
     # Perfect prediction line
     min_val = min(df["ref"].min(), df["pred"].min())

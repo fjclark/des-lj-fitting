@@ -417,7 +417,7 @@ def train(
     correct_fn = trainable.clamp
 
     lm_config = descent.optim.LevenbergMarquardtConfig(
-        mode="adaptive", n_convergence_criteria=0, max_steps=20
+        mode="adaptive", n_convergence_criteria=0, max_steps=25
     )
     with SummaryWriter(config.fit_dir / "tensorboard") as writer:
         report_fn = functools.partial(
@@ -454,8 +454,10 @@ def train(
 
     # Plot the parameter changes from the initial force field
     plot_vdw_parameter_changes(
-        original_ff=ForceField(config.training.starting_force_field_path),
-        fitted_ff=ForceField(config.output_ff_path),
+        original_ff=ForceField(
+            config.training.starting_force_field_path, load_plugins=True
+        ),
+        fitted_ff=ForceField(config.output_ff_path, load_plugins=True),
         output_path=config.fit_dir / "parameter_changes.png",
     )
 

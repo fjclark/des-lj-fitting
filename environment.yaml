@@ -16,6 +16,9 @@ dependencies:
   - panel
   - seaborn
   - plotmol
+  - smirnoff-plugins
+  - de-forcefields>=1.0.4
+  - datasets>=3.6 # Need newish version to handle pathlib paths correctly
 
   # Workflow
   - snakemake
